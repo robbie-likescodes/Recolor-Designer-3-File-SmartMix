@@ -700,7 +700,7 @@ function renderRulesTable(){
 
     tbody.appendChild(tr);
     updateModeUI();
-  });
+  };
 }
 
 function autoGenerateMixesIfEnabled(){
