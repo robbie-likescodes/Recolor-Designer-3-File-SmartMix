@@ -1,0 +1,299 @@
+/* =============================================================
+   Recolor Designer — styles.css
+   - Cushy, touch-friendly UI for iPhone & Desktop
+   - Spacious layout, large tap targets, clean typography
+   - Custom sliders, cards, drawer, dialogs, toasts, tables
+   - Light/Dark via prefers-color-scheme
+   ============================================================= */
+
+:root {
+  /* Color system */
+  --bg: #0e0f12;
+  --bg-elev: #14161b;
+  --bg-soft: #1b1e25;
+  --panel: #191c23;
+  --card: #151821;
+  --surface: #11141a;
+  --muted: #a6b0c0;
+  --text: #e9eef7;
+  --text-dim: #c8d0df;
+  --brand: #7aa2ff;
+  --brand-2: #4cd4c5;
+  --accent: #ffb86b;
+  --danger: #ff6b6b;
+  --warn: #ffb84d;
+  --ok: #6df7a3;
+  --shadow: 0 6px 24px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.35);
+
+  /* Spacing & radii */
+  --radius: 16px;
+  --radius-sm: 12px;
+  --radius-lg: 22px;
+  --pad-1: 8px;
+  --pad-2: 12px;
+  --pad-3: 16px;
+  --pad-4: 24px;
+  --gap-1: 8px;
+  --gap-2: 12px;
+  --gap-3: 16px;
+  --gap-4: 24px;
+
+  /* Typography */
+  --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --size-1: 12px;
+  --size-2: 14px;
+  --size-3: 16px;
+  --size-4: 18px;
+  --size-5: 22px;
+  --size-6: 28px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f6f7fb;
+    --bg-elev: #ffffff;
+    --bg-soft: #f0f2f8;
+    --panel: #ffffff;
+    --card: #ffffff;
+    --surface: #ffffff;
+    --muted: #5a6373;
+    --text: #0b1220;
+    --text-dim: #2a3446;
+    --brand: #3a66ff;
+    --brand-2: #1bb3a5;
+    --accent: #e38b27;
+    --danger: #d74040;
+    --warn: #cc7a00;
+    --ok: #1ea46f;
+    --shadow: 0 10px 30px rgba(0,0,0,.08), 0 2px 10px rgba(0,0,0,.06);
+  }
+}
+
+/* =============== Global =============== */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--size-3);
+  color: var(--text);
+  background: radial-gradient(1200px 800px at 30% -10%, rgba(122,162,255,.14), transparent 60%),
+              radial-gradient(1200px 800px at 120% 10%, rgba(76,212,197,.12), transparent 60%),
+              var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, canvas { max-width: 100%; display: block; }
+
+.mono { font-family: var(--mono); }
+.smallmuted { font-size: var(--size-2); color: var(--muted); margin-top: var(--pad-2); }
+.hidden { display: none !important; }
+.wrap { flex-wrap: wrap; }
+.gap { gap: var(--gap-3); }
+.tiny { gap: var(--gap-1); }
+.tight > * { margin-top: 6px; }
+.col-span-2 { grid-column: span 2; }
+
+/* Tap target friendliness */
+button, input, select { min-height: 42px; }
+label.lbl input[type="number"],
+label.lbl input[type="text"] { min-height: 40px; }
+
+/* =============== Topbar =============== */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--pad-3) var(--pad-4);
+  background: linear-gradient(180deg, var(--panel), color-mix(in oklab, var(--panel) 80%, transparent));
+  box-shadow: var(--shadow);
+  backdrop-filter: saturate(120%) blur(8px);
+}
+.app-title { margin: 0; font-size: var(--size-6); letter-spacing: .2px; }
+.app-subtitle { margin: 4px 0 0; color: var(--muted); font-size: var(--size-3); }
+.topbar__right { display: flex; align-items: center; gap: var(--gap-2); }
+
+/* =============== Buttons =============== */
+.btn {
+  appearance: none; border: 0; cursor: pointer; user-select: none;
+  padding: 10px 14px; border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--brand) 94%, #fff 6%), var(--brand));
+  color: white; font-weight: 600; letter-spacing: .2px;
+  box-shadow: 0 2px 0px rgba(0,0,0,.12), inset 0 -1px 0 rgba(0,0,0,.15);
+  transition: transform .06s ease, filter .2s ease, box-shadow .2s ease;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: translateY(1px); }
+
+.btn.ghost {
+  background: color-mix(in oklab, var(--bg-elev) 86%, var(--brand) 14%);
+  color: var(--text);
+}
+.btn.warn { background: linear-gradient(180deg, color-mix(in oklab, var(--danger) 92%, #fff 8%), var(--danger)); }
+
+.filelike input[type="file"] { display: none; }
+
+/* =============== Layout: Main Grid & Cards =============== */
+.grid {
+  display: grid; gap: var(--gap-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: var(--pad-4);
+}
+
+@media (max-width: 980px) {
+  .grid { grid-template-columns: 1fr; }
+  .col-span-2 { grid-column: span 1; }
+}
+
+.card {
+  background: linear-gradient(180deg, var(--card), color-mix(in oklab, var(--card) 90%, transparent));
+  border-radius: var(--radius);
+  padding: var(--pad-4);
+  box-shadow: var(--shadow);
+}
+.card__title { margin-top: 0; margin-bottom: var(--pad-3); font-size: var(--size-5); }
+
+.row { display: flex; align-items: center; gap: var(--gap-2); }
+
+.canvas-wrap {
+  width: 100%;
+  background: var(--bg-soft);
+  border-radius: var(--radius);
+  padding: var(--pad-2);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--muted) 18%, transparent);
+}
+#heroCanvas, #mappedCanvas { width: 100%; border-radius: var(--radius-sm); background: #000; }
+
+/* =============== Forms =============== */
+.lbl { display: inline-flex; flex-direction: column; gap: 6px; font-size: var(--size-3); }
+.chk { display: inline-flex; align-items: center; gap: 8px; }
+.chk input { width: 20px; height: 20px; }
+
+input[type="number"], input[type="text"], select {
+  border: 1px solid color-mix(in oklab, var(--muted) 28%, transparent);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 12px; padding: 10px 12px; font-size: var(--size-3);
+  outline: none; box-shadow: inset 0 1px 2px rgba(0,0,0,.08);
+}
+input[type="text"]::placeholder { color: color-mix(in oklab, var(--muted) 70%, transparent); }
+
+/* Sliders */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; height: 34px;
+  background: transparent; padding: 10px 0; width: 220px;
+}
+input[type="range"]:focus { outline: none; }
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+}
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-2)); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff 0 22%, #e9eef7 22% 60%, #d0d8e6 60% 100%);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+  margin-top: -10px; /* centers on track */
+}
+input[type="range"]::-moz-range-thumb {
+  width: 26px; height: 26px; border-radius: 50%; border: none;
+  background: radial-gradient(circle at 30% 30%, #fff 0 22%, #e9eef7 22% 60%, #d0d8e6 60% 100%);
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
+}
+
+/* Switch */
+.switch { position: relative; display: inline-block; width: 48px; height: 28px; }
+.switch input { display: none; }
+.switch span { position: absolute; inset: 0; background: color-mix(in oklab, var(--muted) 25%, var(--bg-soft)); border-radius: 999px; transition: background .2s ease; }
+.switch span::after { content: ""; position: absolute; width: 24px; height: 24px; border-radius: 50%; top: 2px; left: 2px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); transition: transform .2s ease; }
+.switch input:checked + span { background: color-mix(in oklab, var(--brand) 70%, var(--bg-soft)); }
+.switch input:checked + span::after { transform: translateX(20px); }
+
+/* =============== Palette & Swatches =============== */
+.swatch-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--gap-2);
+}
+.swatch {
+  display: grid; grid-template-columns: 44px 1fr; align-items: center; gap: var(--gap-2);
+  background: var(--bg-soft); padding: var(--pad-2); border-radius: var(--radius-sm);
+}
+.swatch::before {
+  content: ""; width: 44px; height: 44px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12);
+  background: var(--brand); /* will be overridden inline */
+}
+.swatch .meta { display: flex; flex-direction: column; gap: 2px; }
+.swatch .meta .hex { font-family: var(--mono); font-size: var(--size-2); color: var(--text-dim); }
+
+/* Restricted list with dots + controls */
+.restricted-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--gap-2); }
+.restricted-item { background: var(--bg-soft); padding: var(--pad-2); border-radius: var(--radius-sm); display: grid; gap: 10px; }
+.restricted-item .row { justify-content: space-between; }
+.color-dot { width: 28px; height: 28px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(0,0,0,.18); border: 2px solid rgba(255,255,255,.22); }
+
+/* Ink pills & weights */
+.ink-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px;
+  background: color-mix(in oklab, var(--bg-elev) 80%, var(--brand) 20%); color: var(--text); box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+}
+.pill .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+
+.weights { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.weights .row { justify-content: stretch; }
+.weights .row input[type="range"] { width: 180px; }
+
+/* =============== Rules table =============== */
+.table { width: 100%; border-collapse: collapse; border-radius: var(--radius); overflow: hidden; }
+.table thead th {
+  text-align: left; font-weight: 700; color: var(--text-dim); font-size: var(--size-2);
+  background: var(--panel); padding: 12px 14px; position: sticky; top: 0; z-index: 1;
+}
+.table tbody td { padding: 12px 14px; border-bottom: 1px solid color-mix(in oklab, var(--muted) 24%, transparent); vertical-align: top; }
+.table tbody tr:hover { background: color-mix(in oklab, var(--panel) 85%, transparent); }
+
+/* =============== Drawer (Projects) =============== */
+.drawer {
+  position: fixed; right: 0; top: 0; bottom: 0; width: min(480px, 95vw);
+  background: var(--panel); box-shadow: -12px 0 40px rgba(0,0,0,.35);
+  transform: translateX(100%); transition: transform .28s ease; z-index: 50;
+  display: grid; grid-template-rows: auto 1fr;
+}
+.drawer.show { transform: translateX(0); }
+.drawer__head { display: flex; align-items: center; justify-content: space-between; padding: var(--pad-3); box-shadow: 0 1px 0 color-mix(in oklab, var(--muted) 24%, transparent); }
+.drawer__body { padding: var(--pad-3); overflow: auto; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.list li { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; background: var(--bg-soft); padding: 10px 12px; border-radius: 12px; }
+
+/* =============== Dialogs =============== */
+.dialog { border: none; border-radius: var(--radius); padding: 0; max-width: min(720px, 92vw); box-shadow: var(--shadow); background: var(--panel); color: var(--text); }
+.dialog::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(2px); }
+.dialog__head { display: flex; align-items: center; justify-content: space-between; padding: var(--pad-3); border-bottom: 1px solid color-mix(in oklab, var(--muted) 24%, transparent); }
+.dialog__body { padding: var(--pad-3); }
+
+/* =============== Progress pill =============== */
+.progress { display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 999px; background: var(--bg-soft); box-shadow: var(--shadow); }
+#mapProgressLabel { font-weight: 600; }
+
+/* =============== Toasts =============== */
+.toasts { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 60; display: grid; gap: 10px; }
+.toast { background: var(--panel); color: var(--text); padding: 12px 14px; border-radius: 12px; box-shadow: var(--shadow); }
+.toast.ok { border-left: 4px solid var(--ok); }
+.toast.warn { border-left: 4px solid var(--warn); }
+.toast.err { border-left: 4px solid var(--danger); }
+
+/* =============== Utilities =============== */
+.warn { background: linear-gradient(180deg, color-mix(in oklab, var(--warn) 90%, #fff 10%), var(--warn)); color: #120b00; }
+.small { font-size: var(--size-2); }
+.grid.tight { gap: 6px; }
+
+/* =============== Mobile tweaks =============== */
+@media (max-width: 600px) {
+  .topbar { padding: var(--pad-3); }
+  .app-title { font-size: 24px; }
+  .grid { padding: var(--pad-3); gap: var(--gap-3); }
+  .card { padding: var(--pad-3); }
+  .row { gap: var(--gap-2); }
+  input[type="range"] { width: 180px; }
+  .swatch-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
