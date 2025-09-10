@@ -6,99 +6,11 @@
 const $  = (q, r = document) => r.querySelector(q);
 const $$ = (q, r = document) => Array.from(r.querySelectorAll(q));
 
-/* Map all elements used across modules (guard nulls for flexible markup) */
-const els = {
-  // top actions
-  btnOpenHelp:  $('#btnOpenHelp'),
-  btnOpenAbout: $('#btnOpenAbout'),
+/* -------- alias helpers (used only after DOM is ready) -------- */
+const pick = (...ids) => ids.map(id => document.getElementById(id)).find(Boolean) || null;
 
-  // upload & preview
-  fileInput:    $('#fileInput'),
-  heroCanvas:   $('#heroCanvas'),    // original preview (hero)
-  maxW:         $('#maxW'),
-  zoom:         $('#zoom'),
-  zoomLabel:    $('#zoomLabel'),
-  btnZoomFit:   $('#btnZoomFit'),
-  btnZoom100:   $('#btnZoom100'),
-  btnLoadSample:$('#btnLoadSample'),
-  btnClear:     $('#btnClear'),
-
-  // original palette
-  kClusters:    $('#kClusters'),
-  kClustersOut: $('#kClustersOut'),
-  btnExtract:   $('#btnExtract'),
-  btnEyedropper:$('#btnEyedropper'),
-  origPalette:  $('#origPalette'),
-
-  // restricted palette
-  btnFromOriginal: $('#btnFromOriginal'),
-  allowWhite:      $('#allowWhite'),
-  btnAddInk:       $('#btnAddInk'),
-  restrictedList:  $('#restrictedList'),
-  kitName:         $('#kitName'),
-  btnSaveKit:      $('#btnSaveKit'),
-  btnLoadKit:      $('#btnLoadKit'),
-  btnDeleteKit:    $('#btnDeleteKit'),
-
-  // smart mixing
-  autoSmart:        $('#autoSmart'),
-  maxInksPerMix:    $('#maxInksPerMix'),
-  gamutSensitivity: $('#gamutSensitivity'),
-  gamutSensitivityOut: $('#gamutSensitivityOut'),
-  mixBlock:         $('#mixBlock'),
-  mixCell:          $('#mixCell'),
-  mixPattern:       $('#mixPattern'),
-  btnGenerateMixes: $('#btnGenerateMixes'),
-  rulesTable:       $('#rulesTable'),
-  tplRule:          $('#tplRule'),
-
-  // mapping
-  wLight:       $('#wLight'),
-  wLightOut:    $('#wLightOut'),
-  wChroma:      $('#wChroma'),
-  wChromaOut:   $('#wChromaOut'),
-  useDither:    $('#useDither'),
-  useSharpen:   $('#useSharpen'),
-  bgMode:       $('#bgMode'),
-  previewScale: $('#previewScale'),
-  applyBtn:     $('#applyBtn'),
-  bigRegen:     $('#bigRegen'),
-  mapProgress:  $('#mapProgress'),
-  mapProgressLabel: $('#mapProgressLabel'),
-
-  // canvases (mapped output)
-  mappedCanvas: $('#mappedCanvas'),
-
-  // export
-  exportScale:      $('#exportScale'),
-  exportTransparent:$('#exportTransparent'),
-  btnExportPNG:     $('#btnExportPNG'),
-  btnExportSVG:     $('#btnExportSVG'),
-  btnExportReport:  $('#btnExportReport'),
-  downloadLink:     $('#downloadLink'),
-
-  // projects drawer
-  openProjects:   $('#openProjects'),
-  projectsPane:   $('#projectsPane'),
-  closeProjects:  $('#closeProjects'),
-  refreshProjects:$('#refreshProjects'),
-  saveProject:    $('#saveProject'),
-  exportProject:  $('#exportProject'),
-  importProject:  $('#importProject'),
-  deleteProject:  $('#deleteProject'),
-  projectsList:   $('#projectsList'),
-
-  // dialogs & toasts
-  dlgHelp:       $('#dlgHelp'),
-  btnCloseHelp:  $('#btnCloseHelp'),
-  dlgAbout:      $('#dlgAbout'),
-  btnCloseAbout: $('#btnCloseAbout'),
-  toasts:        $('#toasts'),
-};
-
-/* ============ Canvas contexts ============ */
-const heroCtx   = els.heroCanvas?.getContext('2d', { willReadFrequently: true });
-const mappedCtx = els.mappedCanvas?.getContext('2d', { willReadFrequently: true });
+/* ============ Global refs hoisted (assigned on DOMContentLoaded) ============ */
+let els, heroCtx, mappedCtx, outCtx;
 
 /* ============ App State ============ */
 const state = {
@@ -108,14 +20,14 @@ const state = {
   previewScalePx: 1,      // computed to fit hero/maxW
 
   // palettes
-  origPalette: [],        // array of hex (e.g. ["#aabbcc", ...])
+  origPalette: [],        // array of hex (e.g. ["#AABBCC", ...])
   restricted:  [],        // array of { hex, enabled }
 
   // rules: per-original hex overrides (mix or pattern)
   rules: new Map(),       // key: origHex -> { on, mode:'mix'|'pattern', mix:{...} | pattern:{...}, err: number }
 
   // mapping cache for preview/export
-  mappedImageData: null,  // ImageData at full res
+  mappedImageData: null,  // ImageData at full res (or preview)
   lastPreview: { paramsHash: '', previewScale: 0, w:0, h:0 },
 
   // projects
@@ -126,9 +38,9 @@ const state = {
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const sameHex = (a,b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 const hexToRgb = (hex) => {
-  hex = hex.replace('#','').trim();
+  hex = (hex||'').replace('#','').trim();
   if (hex.length === 3) hex = hex.split('').map(x=>x+x).join('');
-  const n = parseInt(hex, 16);
+  const n = parseInt(hex || '000000', 16);
   return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
 };
 const rgbToHex = (r,g,b) => '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase();
@@ -137,9 +49,8 @@ const rgbToHex = (r,g,b) => '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).j
 function srgb2lin(u){ u/=255; return (u<=0.04045)?(u/12.92):Math.pow((u+0.055)/1.055,2.4); }
 function lin2srgb(u){ return Math.round(255*((u<=0.0031308)?(u*12.92):(1.055*Math.pow(u,1/2.4)-0.055))); }
 
-/* RGB -> Lab */
+/* RGB -> Lab (D65) */
 function rgb2lab(r,g,b){
-  // D65
   let R=srgb2lin(r), G=srgb2lin(g), B=srgb2lin(b);
   let X=R*0.4124+G*0.3576+B*0.1805;
   let Y=R*0.2126+G*0.7152+B*0.0722;
@@ -150,7 +61,7 @@ function rgb2lab(r,g,b){
   return { L:116*fy-16, a:500*(fx-fy), b:200*(fy-fz) };
 }
 
-/* weighted squared distance */
+/* weighted squared distance (approx) */
 function deltaE2(l1, l2, wL=1, wC=1){
   const dL=(l1.L-l2.L)*wL;
   const dA=(l1.a-l2.a);
@@ -158,14 +69,11 @@ function deltaE2(l1, l2, wL=1, wC=1){
   const C1=Math.sqrt(l1.a*l1.a+l1.b*l1.b);
   const C2=Math.sqrt(l2.a*l2.a+l2.b*l2.b);
   const dC=(C1-C2)*wC;
-  /* approximate: emphasize chroma via dC; keep da/db too */
   return dL*dL + dC*dC + dA*dA*0.35 + dB*dB*0.35;
 }
 
 /* Floyd–Steinberg propagation */
 function fsPropagate(err, w, x, y, er, eg, eb){
-  const i = (y*w + x)*3;
-  const n = w*3;
   const spread = [
     [1,0, 7/16],
     [-1,1,3/16],[0,1,5/16],[1,1,1/16],
@@ -208,33 +116,32 @@ function toast(msg, kind){
   const div=document.createElement('div');
   div.className='toast '+(kind==='danger'?'toast--danger':kind==='ok'?'toast--ok':'');
   div.textContent=msg;
-  els.toasts?.appendChild(div);
+  els?.toasts?.appendChild(div);
   setTimeout(()=>div.remove(), 3000);
 }
 
 /* ============ Image loading & hero preview ============ */
-function loadImage(file){
+function loadImage(fileOrBlob){
   return new Promise((res, rej)=>{
     const img=new Image();
     img.onload=()=>res(img);
     img.onerror=rej;
-    img.src=URL.createObjectURL(file);
+    img.src=URL.createObjectURL(fileOrBlob);
   });
 }
 
 function drawHero(img){
-  // Scale to max width
   const maxW = parseInt(els.maxW.value||1600,10);
-  const scale = Math.min(1, maxW / img.naturalWidth);
-  const w = Math.round(img.naturalWidth*scale);
-  const h = Math.round(img.naturalHeight*scale);
+  const scale = Math.min(1, maxW / (img.naturalWidth||img.width||1));
+  const w = Math.round((img.naturalWidth||img.width)*scale);
+  const h = Math.round((img.naturalHeight||img.height)*scale);
   els.heroCanvas.width=w; els.heroCanvas.height=h;
   heroCtx.imageSmoothingEnabled=true;
   heroCtx.clearRect(0,0,w,h);
   heroCtx.drawImage(img, 0,0,w,h);
   state.srcImage = img;
-  state.srcW = img.naturalWidth;
-  state.srcH = img.naturalHeight;
+  state.srcW = img.naturalWidth||img.width;
+  state.srcH = img.naturalHeight||img.height;
   state.previewScalePx = scale;
   updateZoom();
 }
@@ -247,11 +154,12 @@ function updateZoom(){
   els.heroCanvas.style.transform=`scale(${z})`;
 }
 
-/* Sample image for quick QA */
+/* Sample image (tiny stripes) */
 async function loadSample(){
-  // simple 3x stripes PNG data URI
   const p = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAQCAYAAABcVxVtAAAAL0lEQVR4nO3OwQkAMAzDsB7/0yyg7k2Gm5C0m6wFZ5zNQ8H4l0Jd2fX9n7gXx7Q2F9yA0gAAc6bq2hQ8wH8A9S0Q0S1h9BMAAAAASUVORK5CYII=';
-  const img = await loadImage(await (await fetch(p)).blob()); // force Image() path
+  const resp = await fetch(p);
+  const blob = await resp.blob();
+  const img = await loadImage(blob);
   drawHero(img);
   toast('Loaded sample');
 }
@@ -263,7 +171,6 @@ function extractPalette(k=8){
   const {width:w,height:h} = els.heroCanvas;
   const imgData = heroCtx.getImageData(0,0,w,h).data;
 
-  // sample pixels (downsample if large)
   const step = Math.max(1, Math.floor(Math.sqrt((w*h) / 20000)));
   const pts=[];
   for(let y=0;y<h;y+=step)
@@ -273,7 +180,6 @@ function extractPalette(k=8){
       pts.push([imgData[i], imgData[i+1], imgData[i+2]]);
     }
 
-  // init random seeds
   const seeds = [];
   for(let i=0;i<k;i++) seeds.push(pts[(Math.random()*pts.length)|0].slice());
   let changed=true, iter=0;
@@ -282,7 +188,6 @@ function extractPalette(k=8){
 
   while(changed && iter++<MAX_IT){
     changed=false;
-    // assign
     for(let p=0;p<pts.length;p++){
       const v=pts[p];
       let bi=0, bd=1e18;
@@ -293,7 +198,6 @@ function extractPalette(k=8){
       }
       if(assign[p]!==bi){ assign[p]=bi; changed=true; }
     }
-    // recompute
     const sum=Array.from({length:k},()=>[0,0,0,0]);
     for(let p=0;p<pts.length;p++){
       const a=assign[p];
@@ -307,7 +211,6 @@ function extractPalette(k=8){
       }
     }
   }
-  // result
   const hexes = seeds.map(s=>rgbToHex(Math.round(s[0]),Math.round(s[1]),Math.round(s[2])));
   state.origPalette = dedupeHexes(hexes);
   renderOriginalPalette();
@@ -404,7 +307,7 @@ function fromOriginalToRestricted(){
 }
 /* Kits in localStorage */
 function saveKit(){
-  const name=(els.kitName.value||'My Kit').trim();
+  const name=(els.kitName?.value||'My Kit').trim();
   if(!name) return toast('Enter kit name','danger');
   const kits = JSON.parse(localStorage.getItem('cm_kits')||'{}');
   kits[name] = state.restricted.map(x=>({hex:x.hex, enabled:!!x.enabled}));
@@ -415,7 +318,6 @@ function loadKit(){
   const kits = JSON.parse(localStorage.getItem('cm_kits')||'{}');
   const names=Object.keys(kits);
   if(!names.length) return toast('No kits saved yet');
-  // pick first for simplicity; could add a modal list
   const name = prompt('Load which kit?\n'+names.join('\n'), names[0]);
   if(!name || !kits[name]) return;
   state.restricted = kits[name].map(x=>({hex:x.hex, enabled:!!x.enabled}));
@@ -435,11 +337,10 @@ function deleteKit(){
 
 /* ============ Smart Mixing (auto + per-color rule rows) ============ */
 
-/* Find best 2- or 3-ink mix by brute-force small search (RGB least-squares) */
+/* Find best 2- or 3-ink mix by brute-force small search (RGB least-squares-ish) */
 function bestMixForTarget(targetHex, inks, maxInks=2){
   const target = hexToRgb(targetHex);
   const combos = [];
-  // build combinations of 2 or 3
   for(let i=0;i<inks.length;i++){
     for(let j=i+1;j<inks.length;j++){
       combos.push([inks[i], inks[j]]);
@@ -451,7 +352,6 @@ function bestMixForTarget(targetHex, inks, maxInks=2){
   let best=null, bestErr=1e18;
   for(const combo of combos){
     const rgb = combo.map(hexToRgb);
-    // grid-search weights that sum to 1 (10% step)
     const step = combo.length===2? 0.05 : 0.1;
     if (combo.length===2){
       for(let a=0;a<=1.0001;a+=step){
@@ -476,12 +376,10 @@ function bestMixForTarget(targetHex, inks, maxInks=2){
     }
   }
   if (!best) return null;
-  // Normalize weights to percentages (integers sum 100)
   let w = best.weights.map(v=>Math.max(0, v));
   const s = w.reduce((a,b)=>a+b,0)||1;
   w = w.map(v=>v/s);
   let p = w.map(v=>Math.round(v*100));
-  // fix rounding to 100
   let diff = 100 - p.reduce((a,b)=>a+b,0);
   while(diff!==0){
     const idx = diff>0 ? p.indexOf(Math.min(...p)) : p.indexOf(Math.max(...p));
@@ -522,15 +420,14 @@ function makeDots(cell, sizePct, fg, bg, stagger=false){
   return c;
 }
 
-/* Build a mix tile (block*cell)^2 pixels), assign ink by blue-noise-ish ranking */
+/* Build a mix tile */
 function buildMixTile(block, inks, pattern='bluenoise', cellSize=3){
-  const size = block * cellSize;
+  const size = Math.max(1, block|0) * Math.max(1, cellSize|0);
   const c=document.createElement('canvas'); c.width=size; c.height=size;
   const ctx=c.getContext('2d', { willReadFrequently: true });
   const ranks = [];
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
-      // quick quasi blue-noise: rank by (x*131 + y*197) % size
       let r = (x*131 + y*197) % (size);
       if (pattern==='checker') r = ((x/cellSize|0)+(y/cellSize|0)) % 2 ? 9999 : 0;
       if (pattern==='stripeH') r = (y% (2*cellSize))<cellSize ? 0:9999;
@@ -543,12 +440,10 @@ function buildMixTile(block, inks, pattern='bluenoise', cellSize=3){
     }
   }
   ranks.sort((a,b)=>a.r-b.r);
-  // paint by densities
   const total = ranks.length;
   const rgbInks = inks.map(h=>hexToRgb(h));
   const percents = state._tmpMixPercents || new Array(inks.length).fill(Math.floor(100/inks.length));
-  let cuts = [];
-  let acc=0;
+  let cuts = []; let acc=0;
   for(let i=0;i<percents.length;i++){
     acc += Math.round(percents[i]/100 * total);
     cuts.push(acc);
@@ -586,20 +481,17 @@ function buildPatternTile(pr){
 function autoSmartMix(){
   const inks = buildEnabledInks();
   if(!inks.length || !state.origPalette.length) return;
-  const maxInks = parseInt(els.maxInksPerMix.value||2,10);
-  const sensitivity = parseInt(els.gamutSensitivity.value||60,10); // larger = more willing to mix
+  const maxInks = parseInt(els.maxInksPerMix?.value||2,10);
+  const sensitivity = parseInt(els.gamutSensitivity?.value||60,10); // larger = more willing to mix
   const snapE = 6 + (100 - sensitivity)*0.05; // ∈ ~[6..11]
 
   for(const oh of state.origPalette){
-    // if already exactly present among inks, clear rule
     if (inks.some(h=>sameHex(h,oh))) {
       state.rules.delete(oh);
       continue;
     }
-    // try best mix
     const best = bestMixForTarget(oh, inks, maxInks);
     if(!best){ state.rules.delete(oh); continue; }
-    // compute approx lab error against mix centroid
     const tgtLab = rgb2lab(...Object.values(hexToRgb(oh)));
     const mixRgb = best.inks
       .map(hexToRgb)
@@ -610,7 +502,6 @@ function autoSmartMix(){
     const e2 = deltaE2(tgtLab, rgb2lab(mixRgb.r, mixRgb.g, mixRgb.b), 1, 1);
     const e = Math.sqrt(e2);
     if (e > snapE) {
-      // if off-gamut, fallback to nearest single ink
       let nearest = inks[0], bestD=1e18;
       for(const ih of inks){
         const c=hexToRgb(ih);
@@ -618,14 +509,14 @@ function autoSmartMix(){
         if(d<bestD){bestD=d; nearest=ih;}
       }
       state.rules.set(oh, { on:true, mode:'mix', err:e,
-        mix: { inks:[nearest], percents:[100], block: parseInt(els.mixBlock.value||6,10),
-               cell: parseInt(els.mixCell.value||3,10), pattern: els.mixPattern.value } });
+        mix: { inks:[nearest], percents:[100], block: parseInt(els.mixBlock?.value||6,10),
+               cell: parseInt(els.mixCell?.value||3,10), pattern: els.mixPattern?.value || 'bluenoise' } });
     } else {
       state.rules.set(oh, { on:true, mode:'mix', err:e,
         mix: { inks: best.inks, percents: best.percents,
-               block: parseInt(els.mixBlock.value||6,10),
-               cell:  parseInt(els.mixCell.value||3,10),
-               pattern: els.mixPattern.value } });
+               block: parseInt(els.mixBlock?.value||6,10),
+               cell:  parseInt(els.mixCell?.value||3,10),
+               pattern: els.mixPattern?.value || 'bluenoise' } });
     }
   }
   renderRulesTable();
@@ -738,7 +629,6 @@ function renderRulesTable(){
       rule.pattern = { shape:'dot', bgHex:'#FFFFFF', inks:[buildEnabledInks()[0]||'#000000'], size:65, cell:3, stagger:false, block:6 };
     }
 
-    // hook mode toggle
     function updateModeUI(){
       if(modeSel.value==='mix'){
         mixWrap.classList.remove('hidden');
@@ -757,7 +647,6 @@ function renderRulesTable(){
     // init MIX controls
     mixBlock.value = rule.mix.block|0;   mixCell.value = rule.mix.cell|0;   mixPattern.value = rule.mix.pattern||'bluenoise';
     renderInkPills(mixInks,  rule.mix.inks||[]);
-    // weights
     function renderWeights(){
       mixWeights.innerHTML='';
       rule.mix.percents = (rule.mix.percents?.length===rule.mix.inks.length) ? rule.mix.percents : new Array(rule.mix.inks.length).fill(Math.floor(100/(rule.mix.inks.length||1))||100);
@@ -767,7 +656,6 @@ function renderRulesTable(){
         const out=document.createElement('span'); out.className='mix-ink-val mono'; out.textContent=v+'%';
         rng.addEventListener('input', ()=>{
           rule.mix.percents[i]=parseInt(rng.value,10);
-          // normalize to sum 100
           const sum = rule.mix.percents.reduce((a,b)=>a+b,0);
           if(sum!==100 && rule.mix.percents.length){
             const idx = i===0?1:0;
@@ -797,7 +685,6 @@ function renderRulesTable(){
     patBlock.value = rule.pattern.block || 6;
     renderInkPills(patInks, rule.pattern.inks||['#000000'], true);
 
-    // bind PATTERN events
     patShape.addEventListener('change', ()=>{ rule.pattern.shape=patShape.value; refreshPreview(); });
     patBG.addEventListener('change',   ()=>{ rule.pattern.bgHex=patBG.value.toUpperCase(); refreshPreview(); });
     patCell.addEventListener('change', ()=>{ rule.pattern.cell=parseInt(patCell.value,10)||3; refreshPreview(); });
@@ -805,14 +692,12 @@ function renderRulesTable(){
     patStag.addEventListener('change', ()=>{ rule.pattern.stagger=!!patStag.checked; refreshPreview(); });
     patBlock.addEventListener('change',()=>{ rule.pattern.block=parseInt(patBlock.value,10)||6; refreshPreview(); });
 
-    // actions & ΔE
     tr.querySelector('[data-ref="errOut"]').textContent = isFinite(rule.err)? (rule.err.toFixed(2)) : '—';
     tr.querySelector('[data-fn="reset"]').addEventListener('click', ()=>{
       state.rules.delete(oh);
       renderRulesTable();
     });
 
-    // finalize
     tbody.appendChild(tr);
     updateModeUI();
   });
@@ -834,7 +719,7 @@ function currentParamsHash(scale=1){
     wL: +els.wLight.value, wC:+els.wChroma.value,
     dither: !!els.useDither.checked,
     sharpen: !!els.useSharpen.checked,
-    bg: els.bgMode.value,
+    bg: els.bgMode?.value,
     scale
   };
   return JSON.stringify(params);
@@ -852,12 +737,11 @@ function getScaledSrcImageData(scale){
 
 function applyMappingPreview(){
   if(!state.srcImage) return toast('Load an image first','danger');
-  const pScale = parseFloat(els.previewScale.value||'1');
+  const pScale = parseFloat(els.previewScale?.value||'1');
   const paramsHash = currentParamsHash(pScale);
   if (state.lastPreview.paramsHash === paramsHash &&
       state.lastPreview.previewScale === pScale &&
       state.mappedImageData && state.mappedImageData.width && state.mappedImageData.height){
-    // already up-to-date
     els.mapProgress?.classList.add('hidden');
     return;
   }
@@ -873,24 +757,19 @@ function applyMappingPreview(){
   const doSharpen = !!els.useSharpen.checked;
   const snapE2 = 1.2;
 
-  // build ink list incl. rule-mix special tiles
   const inkLabs = buildEnabledInks().map(hex => {
     const { r, g, b } = hexToRgb(hex);
     return { type:'ink', hex, rgb:{r,g,b}, lab: rgb2lab(r,g,b) };
   });
 
-  //  Per-color overrides: store quickly
   const activeRules = new Map();
-  state.rules.forEach((r, key)=>{
-    if(!r.on) return;
-    activeRules.set(key, r);
-  });
+  state.rules.forEach((r, key)=>{ if(r.on) activeRules.set(key, r); });
 
   const err = dither ? new Float32Array(width * height * 3) : null;
   const out = new ImageData(width, height);
   const src = imageData;
 
-  const ruleCache = {}; // prebuild tiles per rule for speed
+  const ruleCache = {};
   function getRuleTile(rule){
     const key = JSON.stringify(rule);
     if (ruleCache[key]) return ruleCache[key];
@@ -903,7 +782,6 @@ function applyMappingPreview(){
     return ruleCache[key];
   }
 
-  // main loop
   for (let y=0;y<height;y++){
     for (let x=0;x<width;x++){
       const idx = (y * width + x);
@@ -929,13 +807,11 @@ function applyMappingPreview(){
         nearestOrig = bestHex;
       }
 
-      // rule override?
       const rule = nearestOrig ? activeRules.get(nearestOrig) : null;
       if (rule){
         const tile = getRuleTile(rule);
-        // tile addressing
         const block = (rule.mode==='mix') ? (rule.mix.block|0) : (rule.pattern.block|0);
-        const cell  = (rule.mode==='mix') ? (rule.mix.cell|0) : (rule.pattern.cell|0);
+        const cell  = (rule.mode==='mix') ? (rule.mix.cell|0)  : (rule.pattern.cell|0);
         const full  = Math.max(1, block*cell);
         const tx = x % full, ty = y % full;
         const ti = (ty*tile.width + tx)*4;
@@ -952,7 +828,6 @@ function applyMappingPreview(){
         continue;
       }
 
-      // otherwise nearest ink
       const lab = rgb2lab(r,g,b);
       let chosen = inkLabs[0], bestE = 1e18;
       for (const ink of inkLabs) {
@@ -977,14 +852,13 @@ function applyMappingPreview(){
 
   if (doSharpen) unsharp(out);
 
-  // BG mode (for preview canvas only)
   els.mappedCanvas.width = width; els.mappedCanvas.height = height;
   mappedCtx.imageSmoothingEnabled = false;
-  if (els.bgMode.value==='white'){ mappedCtx.fillStyle='#FFFFFF'; mappedCtx.fillRect(0,0,width,height); }
-  if (els.bgMode.value==='transparent'){ mappedCtx.clearRect(0,0,width,height); }
+  if (els.bgMode?.value==='white'){ mappedCtx.fillStyle='#FFFFFF'; mappedCtx.fillRect(0,0,width,height); }
+  if (els.bgMode?.value==='transparent'){ mappedCtx.clearRect(0,0,width,height); }
   mappedCtx.putImageData(out, 0, 0);
 
-  state.mappedImageData = out; // cache latest (at preview scale)
+  state.mappedImageData = out;
   state.lastPreview = { paramsHash, previewScale: pScale, w:width, h:height };
   els.mapProgress.classList.add('hidden');
 }
@@ -993,6 +867,7 @@ function applyMappingPreview(){
 function openProjects(){ els.projectsPane?.classList.add('show'); els.projectsPane?.classList.remove('hidden'); listProjects(); }
 function closeProjects(){ els.projectsPane?.classList.remove('show'); setTimeout(()=>els.projectsPane?.classList.add('hidden'), 280); }
 function listProjects(){
+  if(!els.projectsList) return;
   const store = JSON.parse(localStorage.getItem('cm_projects')||'{}');
   els.projectsList.innerHTML='';
   for (const [id, proj] of Object.entries(store)){
@@ -1015,7 +890,7 @@ function saveProject(){
     settings: {
       wLight:+els.wLight.value, wChroma:+els.wChroma.value,
       dither: !!els.useDither.checked, sharpen: !!els.useSharpen.checked,
-      bgMode: els.bgMode.value
+      bgMode: els.bgMode?.value || 'keep'
     }
   };
   const store = JSON.parse(localStorage.getItem('cm_projects')||'{}');
@@ -1033,7 +908,7 @@ function loadProject(id){
   els.wChroma.value= p.settings?.wChroma?? 100;
   els.useDither.checked = !!p.settings?.dither;
   els.useSharpen.checked= !!p.settings?.sharpen;
-  els.bgMode.value = p.settings?.bgMode || 'keep';
+  if (els.bgMode) els.bgMode.value = p.settings?.bgMode || 'keep';
   renderOriginalPalette(); renderRestricted(); renderRulesTable();
   toast('Project loaded','ok');
 }
@@ -1092,22 +967,10 @@ async function doEyedropper(){
   }
 }
 
-/* ============ Export (provided block; wired to our elements) ============ */
+/* ============ Export helpers (PNG/SVG/report) ============ */
+const MAX_DIM   = 16384;        // clamp per-axis dimension
+const MAX_PIXELS = 268_000_000; // ~268 MP area cap
 
-/* expose helpers the export block expects */
-function rgbToHexSafe(r,g,b){ return rgbToHex(r,g,b); }
-
-/* Map names used in the export starter to current IDs */
-els.btnMap = els.applyBtn;
-const outCtx = mappedCtx;
-els.outCanvas = els.mappedCanvas;
-
-/* -------------------- Stage 6: Export (full-res remap before save) -------------------- */
-els.btnExportPNG?.addEventListener('click', exportPNG);
-els.btnExportSVG?.addEventListener('click', exportSVG);
-els.btnExportReport?.addEventListener('click', exportReport);
-
-// Small helper to show/hide the existing progress pill during export too
 function beginBusy(label = 'Processing…') {
   els.mapProgressLabel.textContent = label;
   els.mapProgress.classList.remove('hidden');
@@ -1122,148 +985,18 @@ function endBusy() {
   els.btnMap && (els.btnMap.disabled = false);
 }
 
-// Typical safe canvas limits across browsers (very conservative)
-const MAX_DIM   = 16384;        // clamp per-axis dimension
-const MAX_PIXELS = 268_000_000; // ~268 MP area cap
-
-function ensureFullResMap(cb){
-  let enabled=buildEnabledInks();
-  if (enabled.length===0){
-    enabled = state.origPalette.slice(0, Math.min(10, state.origPalette.length));
-    state.restricted = enabled.map(h => ({hex:h, enabled:true}));
-    renderRestricted(true);
-  }
-
-  const paramsHashFull = currentParamsHash(1);
-  const upToDate = state.mappedImageData &&
-                   state.lastPreview.paramsHash === paramsHashFull &&
-                   state.lastPreview.previewScale === 1 &&
-                   state.mappedImageData.width === state.srcW &&
-                   state.mappedImageData.height === state.srcH;
-
-  if (upToDate) return cb(state.mappedImageData);
-
-  beginBusy('Building export…');
-
-  const { imageData, width, height } = getScaledSrcImageData(1);
-  const wL = (+els.wLight.value||100)/100;
-  const wC = (+els.wChroma.value||100)/100;
-  const dither = !!els.useDither.checked;
-  const doSharpen = !!els.useSharpen.checked;
-  const snapE2 = 1.2;
-
-  const inkLabs = buildEnabledInks().map(hex => {
-    const { r, g, b } = hexToRgb(hex);
-    return { hex, rgb:{r,g,b}, lab: rgb2lab(r,g,b) };
-  });
-
-  // Build quick lookup to nearest original
-  const err = dither ? new Float32Array(width * height * 3) : null;
-
-  // Precompute rule tiles
-  const activeRules = new Map();
-  state.rules.forEach((r,k)=>{ if(r.on) activeRules.set(k,r); });
-  const ruleCache = {};
-  function getRuleTile(rule){
-    const key = JSON.stringify(rule);
-    if (ruleCache[key]) return ruleCache[key];
-    if (rule.mode==='mix'){
-      state._tmpMixPercents = rule.mix.percents;
-      ruleCache[key] = buildMixTile(rule.mix.block|0, rule.mix.inks, rule.mix.pattern, rule.mix.cell|0);
-    } else {
-      ruleCache[key] = buildPatternTile(rule.pattern);
-    }
-    return ruleCache[key];
-  }
-
-  const src = imageData;
-  const out = new ImageData(width, height);
-
-  for (let y=0; y<height; y++){
-    for (let x=0; x<width; x++){
-      const idx = (y * width + x);
-      const i4 = idx * 4;
-      let r = src.data[i4], g = src.data[i4+1], b = src.data[i4+2], a = src.data[i4+3];
-      if (a < 10) { out.data.set([0,0,0,0], i4); continue; }
-
-      if (dither) {
-        r = clamp(r + err[idx * 3 + 0], 0, 255);
-        g = clamp(g + err[idx * 3 + 1], 0, 255);
-        b = clamp(b + err[idx * 3 + 2], 0, 255);
-      }
-
-      // nearest original for 4a/4b
-      let nearestOrig = null;
-      if ((activeRules.size)) {
-        let bestHex = null, bestD = 1e18;
-        for (const oh of state.origPalette) {
-          const c = hexToRgb(oh);
-          const d2 = (r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2;
-          if (d2 < bestD) { bestD = d2; bestHex = oh; }
-        }
-        nearestOrig = bestHex;
-      }
-
-      const rule = nearestOrig ? activeRules.get(nearestOrig) : null;
-      if (rule){
-        const tile = getRuleTile(rule);
-        const block = (rule.mode==='mix') ? (rule.mix.block|0) : (rule.pattern.block|0);
-        const cell  = (rule.mode==='mix') ? (rule.mix.cell|0)  : (rule.pattern.cell|0);
-        const fullBlock = Math.max(1, block*cell);
-        const mx = x % fullBlock, my = y % fullBlock;
-        const mi = (my * tile.width + mx) * 4;
-        out.data[i4 + 0] = tile.data[mi + 0];
-        out.data[i4 + 1] = tile.data[mi + 1];
-        out.data[i4 + 2] = tile.data[mi + 2];
-        out.data[i4 + 3] = a;
-        if (dither) {
-          const er = r - tile.data[mi + 0];
-          const eg = g - tile.data[mi + 1];
-          const eb = b - tile.data[mi + 2];
-          fsPropagate(err, width, x, y, er, eg, eb);
-        }
-        continue;
-      }
-
-      const lab = rgb2lab(r,g,b);
-      let chosen = null, bestE = 1e18;
-      for (const ink of inkLabs) {
-        const e2 = deltaE2(lab, ink.lab, wL, wC);
-        if (e2 < bestE) { bestE = e2; chosen = ink; }
-        if (e2 < snapE2) { chosen = ink; bestE = e2; break; }
-      }
-      out.data[i4 + 0] = chosen.rgb.r;
-      out.data[i4 + 1] = chosen.rgb.g;
-      out.data[i4 + 2] = chosen.rgb.b;
-      out.data[i4 + 3] = a;
-
-      if (dither) {
-        const er = r - chosen.rgb.r;
-        const eg = g - chosen.rgb.g;
-        const eb = b - chosen.rgb.b;
-        fsPropagate(err, width, x, y, er, eg, eb);
-      }
-    }
-    if (y % 64 === 0) els.mapProgressLabel.textContent = `Building export… ${Math.round((y/height)*100)}%`;
-  }
-
-  if (doSharpen) unsharp(out);
-
-  state.mappedImageData = out;
-  state.lastPreview = { paramsHash: paramsHashFull, previewScale: 1, w: width, h: height };
-  els.outCanvas.width = width; els.outCanvas.height = height;
-  outCtx.putImageData(out, 0, 0);
-  endBusy();
-  cb(out);
+function clampExportScale(w, h, desiredScale) {
+  let scale = Math.max(1, Math.floor(desiredScale));
+  scale = Math.min(scale, Math.floor(MAX_DIM / Math.max(1, w)));
+  scale = Math.min(scale, Math.floor(MAX_DIM / Math.max(1, h)));
+  while ((w * scale) * (h * scale) > MAX_PIXELS && scale > 1) scale--;
+  return Math.max(1, scale);
 }
 
-/* ------ NEW: fast + memory-safe tiled upscaler for PNG ------ */
 async function drawScaledTiled(dstCtx, srcImgData, scale, onProgress) {
   const sw = srcImgData.width, sh = srcImgData.height;
-  const tile = 512; // tile size in source pixels (keeps temp memory tiny)
+  const tile = 512;
   dstCtx.imageSmoothingEnabled = false;
-
-  // Use createImageBitmap when available (faster & lean)
   const canBitmap = 'createImageBitmap' in window;
 
   for (let sy = 0; sy < sh; sy += tile) {
@@ -1272,23 +1005,16 @@ async function drawScaledTiled(dstCtx, srcImgData, scale, onProgress) {
       const sww = Math.min(tile, sw - sx);
 
       if (canBitmap) {
-        // Crop directly from ImageData without making a big temp canvas
         const bmp = await createImageBitmap(srcImgData, sx, sy, sww, shh);
         dstCtx.drawImage(bmp, sx * scale, sy * scale, sww * scale, shh * scale);
         bmp.close?.();
       } else {
-        // Fallback: tiny temp canvas for this tile only
         const t = document.createElement('canvas');
         t.width = sww; t.height = shh;
         const tctx = t.getContext('2d', { willReadFrequently: true });
-        const part = new ImageData(
-          srcImgData.data.slice((sy * sw + sx) * 4, (sy * sw + sx) * 4 + shh * sw * 4),
-          sw, shh
-        );
-        // putImageData can't offset into the slice horizontally, so copy row-by-row:
         const row = new ImageData(sww, 1);
         for (let y = 0; y < shh; y++) {
-          const off = (y * sw + sx) * 4;
+          const off = ((sy + y) * sw + sx) * 4;
           row.data.set(srcImgData.data.slice(off, off + sww * 4));
           tctx.putImageData(row, 0, y);
         }
@@ -1296,19 +1022,8 @@ async function drawScaledTiled(dstCtx, srcImgData, scale, onProgress) {
       }
     }
     onProgress?.(Math.round((sy + shh) / sh * 100));
-    // Yield to UI
     await new Promise(r => setTimeout(r, 0));
   }
-}
-
-function clampExportScale(w, h, desiredScale) {
-  let scale = Math.max(1, Math.floor(desiredScale));
-  // Per-axis clamp
-  scale = Math.min(scale, Math.floor(MAX_DIM / Math.max(1, w)));
-  scale = Math.min(scale, Math.floor(MAX_DIM / Math.max(1, h)));
-  // Area clamp
-  while ((w * scale) * (h * scale) > MAX_PIXELS && scale > 1) scale--;
-  return Math.max(1, scale);
 }
 
 function exportPNG(){
@@ -1318,7 +1033,6 @@ function exportPNG(){
     let scale = +els.exportScale.value || 1;
     const transparent = !!els.exportTransparent.checked;
 
-    // Safety clamp to the largest sane size the browser can handle
     const safeScale = clampExportScale(fullImg.width, fullImg.height, scale);
     if (safeScale < scale) {
       toast(`Scale clamped to ${safeScale}× for browser limits`, 'danger');
@@ -1331,22 +1045,18 @@ function exportPNG(){
 
     beginBusy('Exporting PNG…');
 
-    // Create destination canvas
     const c = document.createElement('canvas');
     c.width = outW; c.height = outH;
     const cx = c.getContext('2d');
     cx.imageSmoothingEnabled = false;
 
-    // Optional white background
     if (!transparent) { cx.fillStyle = '#FFFFFF'; cx.fillRect(0, 0, outW, outH); }
 
-    // Tiled, nearest-neighbour exact scale
     try {
       await drawScaledTiled(cx, fullImg, scale, (p)=> {
         els.mapProgressLabel.textContent = `Exporting PNG… ${p}%`;
       });
     } catch (e) {
-      // Fallback to one-shot draw if tiling fails (still nearest-neighbour)
       const tmp = document.createElement('canvas');
       tmp.width = fullImg.width; tmp.height = fullImg.height;
       tmp.getContext('2d').putImageData(fullImg, 0, 0);
@@ -1417,78 +1127,319 @@ function exportReport(){
   toast('Report ready');
 }
 
-/* ============ Wire up UI events ============ */
-// Topbar dialogs
-els.btnOpenHelp?.addEventListener('click', ()=> els.dlgHelp?.showModal());
-els.btnCloseHelp?.addEventListener('click', ()=> els.dlgHelp?.close());
-els.btnOpenAbout?.addEventListener('click', ()=> els.dlgAbout?.showModal());
-els.btnCloseAbout?.addEventListener('click', ()=> els.dlgAbout?.close());
+/* Ensure full-res map before export (used above) */
+function ensureFullResMap(cb){
+  let enabled=buildEnabledInks();
+  if (enabled.length===0){
+    enabled = state.origPalette.slice(0, Math.min(10, state.origPalette.length));
+    state.restricted = enabled.map(h => ({hex:h, enabled:true}));
+    renderRestricted(true);
+  }
 
-// Upload & preview
-els.fileInput?.addEventListener('change', async (e)=>{
-  const f=e.target.files?.[0]; if(!f) return;
-  const img=await loadImage(f); drawHero(img);
-});
-els.btnLoadSample?.addEventListener('click', loadSample);
-els.btnClear?.addEventListener('click', ()=>{
-  state.srcImage=null; state.srcW=state.srcH=0;
-  els.heroCanvas.width=els.heroCanvas.height=0;
-  els.mappedCanvas.width=els.mappedCanvas.height=0;
-  toast('Cleared');
-});
-els.maxW?.addEventListener('change', ()=> state.srcImage && drawHero(state.srcImage));
-els.zoom?.addEventListener('input', updateZoom);
-els.btnZoomFit?.addEventListener('click', ()=>{ els.zoom.value='100'; updateZoom(); });
-els.btnZoom100?.addEventListener('click', ()=>{ els.zoom.value='100'; updateZoom(); });
+  const paramsHashFull = currentParamsHash(1);
+  const upToDate = state.mappedImageData &&
+                   state.lastPreview.paramsHash === paramsHashFull &&
+                   state.lastPreview.previewScale === 1 &&
+                   state.mappedImageData.width === state.srcW &&
+                   state.mappedImageData.height === state.srcH;
 
-// Original palette
-els.kClusters?.addEventListener('input', ()=> els.kClustersOut.textContent=els.kClusters.value);
-els.btnExtract?.addEventListener('click', ()=> extractPalette(parseInt(els.kClusters.value||'8',10)));
-els.btnEyedropper?.addEventListener('click', doEyedropper);
+  if (upToDate) return cb(state.mappedImageData);
 
-// Restricted palette
-els.btnFromOriginal?.addEventListener('click', fromOriginalToRestricted);
-els.allowWhite?.addEventListener('change', ()=>{ renderRestricted(); autoGenerateMixesIfEnabled(); });
-els.btnAddInk?.addEventListener('click', ()=>{
-  state.restricted.push({hex:'#0099FF', enabled:true});
-  renderRestricted(true); autoGenerateMixesIfEnabled();
-});
-els.btnSaveKit?.addEventListener('click', saveKit);
-els.btnLoadKit?.addEventListener('click', loadKit);
-els.btnDeleteKit?.addEventListener('click', deleteKit);
+  beginBusy('Building export…');
 
-// Smart mixing controls
-els.gamutSensitivity?.addEventListener('input', ()=> els.gamutSensitivityOut.textContent=els.gamutSensitivity.value);
-els.btnGenerateMixes?.addEventListener('click', autoSmartMix);
-els.autoSmart?.addEventListener('change', autoGenerateMixesIfEnabled);
+  const { imageData, width, height } = getScaledSrcImageData(1);
+  const wL = (+els.wLight.value||100)/100;
+  const wC = (+els.wChroma.value||100)/100;
+  const dither = !!els.useDither.checked;
+  const doSharpen = !!els.useSharpen.checked;
+  const snapE2 = 1.2;
 
-// Mapping
-function syncWeightsUI(){
-  els.wLightOut.textContent=( (+els.wLight.value||100)/100 ).toFixed(2);
-  els.wChromaOut.textContent=( (+els.wChroma.value||100)/100 ).toFixed(2);
+  const inkLabs = buildEnabledInks().map(hex => {
+    const { r, g, b } = hexToRgb(hex);
+    return { hex, rgb:{r,g,b}, lab: rgb2lab(r,g,b) };
+  });
+
+  const err = dither ? new Float32Array(width * height * 3) : null;
+
+  const activeRules = new Map();
+  state.rules.forEach((r,k)=>{ if(r.on) activeRules.set(k,r); });
+  const ruleCache = {};
+  function getRuleTile(rule){
+    const key = JSON.stringify(rule);
+    if (ruleCache[key]) return ruleCache[key];
+    if (rule.mode==='mix'){
+      state._tmpMixPercents = rule.mix.percents;
+      ruleCache[key] = buildMixTile(rule.mix.block|0, rule.mix.inks, rule.mix.pattern, rule.mix.cell|0);
+    } else {
+      ruleCache[key] = buildPatternTile(rule.pattern);
+    }
+    return ruleCache[key];
+  }
+
+  const src = imageData;
+  const out = new ImageData(width, height);
+
+  for (let y=0; y<height; y++){
+    for (let x=0; x<width; x++){
+      const idx = (y * width + x);
+      const i4 = idx * 4;
+      let r = src.data[i4], g = src.data[i4+1], b = src.data[i4+2], a = src.data[i4+3];
+      if (a < 10) { out.data.set([0,0,0,0], i4); continue; }
+
+      if (dither) {
+        r = clamp(r + err[idx * 3 + 0], 0, 255);
+        g = clamp(g + err[idx * 3 + 1], 0, 255);
+        b = clamp(b + err[idx * 3 + 2], 0, 255);
+      }
+
+      let nearestOrig = null;
+      if ((activeRules.size)) {
+        let bestHex = null, bestD = 1e18;
+        for (const oh of state.origPalette) {
+          const c = hexToRgb(oh);
+          const d2 = (r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2;
+          if (d2 < bestD) { bestD = d2; bestHex = oh; }
+        }
+        nearestOrig = bestHex;
+      }
+
+      const rule = nearestOrig ? activeRules.get(nearestOrig) : null;
+      if (rule){
+        const tile = getRuleTile(rule);
+        const block = (rule.mode==='mix') ? (rule.mix.block|0) : (rule.pattern.block|0);
+        const cell  = (rule.mode==='mix') ? (rule.mix.cell|0)  : (rule.pattern.cell|0);
+        const fullBlock = Math.max(1, block*cell);
+        const mx = x % fullBlock, my = y % fullBlock;
+        const mi = (my * tile.width + mx) * 4;
+        out.data[i4 + 0] = tile.data[mi + 0];
+        out.data[i4 + 1] = tile.data[mi + 1];
+        out.data[i4 + 2] = tile.data[mi + 2];
+        out.data[i4 + 3] = a;
+        if (dither) {
+          const er = r - tile.data[mi + 0];
+          const eg = g - tile.data[mi + 1];
+          const eb = b - tile.data[mi + 2];
+          fsPropagate(err, width, x, y, er, eg, eb);
+        }
+        continue;
+      }
+
+      const lab = rgb2lab(r,g,b);
+      let chosen = null, bestE = 1e18;
+      for (const ink of inkLabs) {
+        const e2 = deltaE2(lab, ink.lab, wL, wC);
+        if (e2 < bestE) { bestE = e2; chosen = ink; }
+        if (e2 < snapE2) { chosen = ink; bestE = e2; break; }
+      }
+      out.data[i4 + 0] = chosen.rgb.r;
+      out.data[i4 + 1] = chosen.rgb.g;
+      out.data[i4 + 2] = chosen.rgb.b;
+      out.data[i4 + 3] = a;
+
+      if (dither) {
+        const er = r - chosen.rgb.r;
+        const eg = g - chosen.rgb.g;
+        const eb = b - chosen.rgb.b;
+        fsPropagate(err, width, x, y, er, eg, eb);
+      }
+    }
+    if (y % 64 === 0) els.mapProgressLabel.textContent = `Building export… ${Math.round((y/height)*100)}%`;
+  }
+
+  if (doSharpen) unsharp(out);
+
+  state.mappedImageData = out;
+  state.lastPreview = { paramsHash: paramsHashFull, previewScale: 1, w: width, h: height };
+  els.outCanvas.width = width; els.outCanvas.height = height;
+  outCtx.putImageData(out, 0, 0);
+  endBusy();
+  cb(out);
 }
-['input','change'].forEach(ev=>{
-  els.wLight?.addEventListener(ev, syncWeightsUI);
-  els.wChroma?.addEventListener(ev, syncWeightsUI);
+
+/* ======================= DOMContentLoaded: bind everything ======================= */
+document.addEventListener('DOMContentLoaded', () => {
+  // Build element map with fallbacks for older IDs
+  els = window.els = {
+    // topbar
+    btnOpenHelp:  pick('btnOpenHelp'),
+    btnOpenAbout: pick('btnOpenAbout'),
+
+    // upload & preview
+    fileInput:    pick('fileInput'),
+    heroCanvas:   pick('heroCanvas'),
+    maxW:         pick('maxW'),
+    zoom:         pick('zoom'),
+    zoomLabel:    pick('zoomLabel'),
+    btnZoomFit:   pick('btnZoomFit'),
+    btnZoom100:   pick('btnZoom100'),
+    btnLoadSample:pick('btnLoadSample'),
+    btnClear:     pick('btnClear'),
+
+    // original palette
+    kClusters:    pick('kClusters','clusters'),
+    kClustersOut: pick('kClustersOut'),
+    btnExtract:   pick('btnExtract'),
+    btnEyedropper:pick('btnEyedropper','btnEyedrop'),
+    origPalette:  pick('origPalette'),
+
+    // restricted palette
+    btnFromOriginal: pick('btnFromOriginal','btnRefreshRestricted'),
+    allowWhite:      pick('allowWhite'),
+    btnAddInk:       pick('btnAddInk','btnAddRestricted'),
+    restrictedList:  pick('restrictedList','restrictedPalette'),
+
+    // kits
+    kitName:         pick('kitName'),
+    btnSaveKit:      pick('btnSaveKit'),
+    btnLoadKit:      pick('btnLoadKit'),
+    btnDeleteKit:    pick('btnDeleteKit'),
+    kitSelect:       pick('kitSelect'),
+
+    // smart mixing UI
+    autoSmart:        pick('autoSmart'),
+    maxInksPerMix:    pick('maxInksPerMix'),
+    gamutSensitivity: pick('gamutSensitivity'),
+    gamutSensitivityOut: pick('gamutSensitivityOut'),
+    mixBlock:         pick('mixBlock'),
+    mixCell:          pick('mixCell'),
+    mixPattern:       pick('mixPattern'),
+    btnGenerateMixes: pick('btnGenerateMixes'),
+    rulesTable:       pick('rulesTable'),
+    tplRule:          pick('tplRule'),
+
+    // mapping
+    wLight:       pick('wLight','wL'),
+    wLightOut:    pick('wLightOut'),
+    wChroma:      pick('wChroma','wC'),
+    wChromaOut:   pick('wChromaOut'),
+    useDither:    pick('useDither','dither'),
+    useSharpen:   pick('useSharpen','sharpen'),
+    bgMode:       pick('bgMode'),
+    previewScale: pick('previewScale','previewRes'),
+    applyBtn:     pick('applyBtn','btnMap'),
+    bigRegen:     pick('bigRegen'),
+    mapProgress:  pick('mapProgress'),
+    mapProgressLabel: pick('mapProgressLabel'),
+
+    // canvases
+    mappedCanvas: pick('mappedCanvas','outCanvas'),
+
+    // export
+    exportScale:       pick('exportScale'),
+    exportTransparent: pick('exportTransparent'),
+    btnExportPNG:      pick('btnExportPNG'),
+    btnExportSVG:      pick('btnExportSVG'),
+    btnExportReport:   pick('btnExportReport'),
+    downloadLink:      pick('downloadLink'),
+
+    // projects
+    openProjects:   pick('openProjects'),
+    projectsPane:   pick('projectsPane'),
+    closeProjects:  pick('closeProjects'),
+    refreshProjects:pick('refreshProjects'),
+    saveProject:    pick('saveProject','btnSaveProject'),
+    exportProject:  pick('exportProject'),
+    importProject:  pick('importProject'),
+    deleteProject:  pick('deleteProject','btnDeleteProject'),
+    projectsList:   pick('projectsList'),
+    projectSelect:  pick('projectSelect'),
+
+    // modals/toasts
+    dlgHelp:       pick('dlgHelp'),
+    btnCloseHelp:  pick('btnCloseHelp'),
+    dlgAbout:      pick('dlgAbout'),
+    btnCloseAbout: pick('btnCloseAbout'),
+    toasts:        pick('toasts','toastHost')
+  };
+
+  // Canvas contexts (now DOM exists)
+  heroCtx   = els.heroCanvas?.getContext('2d', { willReadFrequently: true });
+  mappedCtx = els.mappedCanvas?.getContext('2d', { willReadFrequently: true });
+
+  // Export block expects these names:
+  els.btnMap = els.applyBtn;
+  outCtx = mappedCtx;
+  els.outCanvas = els.mappedCanvas;
+
+  /* ============ Wire up UI events ============ */
+  // Topbar dialogs
+  els.btnOpenHelp?.addEventListener('click', ()=> els.dlgHelp?.showModal());
+  els.btnCloseHelp?.addEventListener('click', ()=> els.dlgHelp?.close());
+  els.btnOpenAbout?.addEventListener('click', ()=> els.dlgAbout?.showModal());
+  els.btnCloseAbout?.addEventListener('click', ()=> els.dlgAbout?.close());
+
+  // Upload & preview
+  els.fileInput?.addEventListener('change', async (e)=>{
+    const f=e.target.files?.[0]; if(!f) return;
+    const img=await loadImage(f); drawHero(img);
+  });
+  els.btnLoadSample?.addEventListener('click', loadSample);
+  els.btnClear?.addEventListener('click', ()=>{
+    state.srcImage=null; state.srcW=state.srcH=0;
+    els.heroCanvas.width=els.heroCanvas.height=0;
+    els.mappedCanvas.width=els.mappedCanvas.height=0;
+    toast('Cleared');
+  });
+  els.maxW?.addEventListener('change', ()=> state.srcImage && drawHero(state.srcImage));
+  els.zoom?.addEventListener('input', updateZoom);
+  els.btnZoomFit?.addEventListener('click', ()=>{ els.zoom.value='100'; updateZoom(); });
+  els.btnZoom100?.addEventListener('click', ()=>{ els.zoom.value='100'; updateZoom(); });
+
+  // Original palette
+  els.kClustersOut && (els.kClustersOut.textContent = els.kClusters?.value || '8');
+  els.kClusters?.addEventListener('input', ()=> els.kClustersOut.textContent=els.kClusters.value);
+  els.btnExtract?.addEventListener('click', ()=> extractPalette(parseInt(els.kClusters.value||'8',10)));
+  els.btnEyedropper?.addEventListener('click', doEyedropper);
+
+  // Restricted palette
+  els.btnFromOriginal?.addEventListener('click', fromOriginalToRestricted);
+  els.allowWhite?.addEventListener('change', ()=>{ renderRestricted(); autoGenerateMixesIfEnabled(); });
+  els.btnAddInk?.addEventListener('click', ()=>{
+    state.restricted.push({hex:'#0099FF', enabled:true});
+    renderRestricted(true); autoGenerateMixesIfEnabled();
+  });
+
+  // Kits
+  els.btnSaveKit?.addEventListener('click', saveKit);
+  els.btnLoadKit?.addEventListener('click', loadKit);
+  els.btnDeleteKit?.addEventListener('click', deleteKit);
+
+  // Smart mixing controls
+  els.gamutSensitivityOut && (els.gamutSensitivityOut.textContent = els.gamutSensitivity?.value || '60');
+  els.gamutSensitivity?.addEventListener('input', ()=> els.gamutSensitivityOut.textContent=els.gamutSensitivity.value);
+  els.btnGenerateMixes?.addEventListener('click', autoSmartMix);
+  els.autoSmart?.addEventListener('change', autoGenerateMixesIfEnabled);
+
+  // Mapping weights readouts
+  function syncWeightsUI(){
+    els.wLightOut && (els.wLightOut.textContent=( (+els.wLight.value||100)/100 ).toFixed(2));
+    els.wChromaOut && (els.wChromaOut.textContent=( (+els.wChroma.value||100)/100 ).toFixed(2));
+  }
+  ['input','change'].forEach(ev=>{
+    els.wLight?.addEventListener(ev, syncWeightsUI);
+    els.wChroma?.addEventListener(ev, syncWeightsUI);
+  });
+  syncWeightsUI();
+
+  // Mapping actions
+  els.applyBtn?.addEventListener('click', applyMappingPreview);
+  els.bigRegen?.addEventListener('click', ()=>{ autoSmartMix(); applyMappingPreview(); });
+
+  // Projects
+  els.openProjects?.addEventListener('click', openProjects);
+  els.closeProjects?.addEventListener('click', closeProjects);
+  els.refreshProjects?.addEventListener('click', listProjects);
+  els.saveProject?.addEventListener('click', saveProject);
+  els.exportProject?.addEventListener('click', exportProject);
+  els.importProject?.addEventListener('change', (e)=> {
+    const f = e.target.files?.[0]; if (f) importProjectFile(f);
+  });
+  els.deleteProject?.addEventListener('click', deleteProject);
+
+  // Export
+  els.btnExportPNG?.addEventListener('click', exportPNG);
+  els.btnExportSVG?.addEventListener('click', exportSVG);
+  els.btnExportReport?.addEventListener('click', exportReport);
+
+  toast('Ready');
 });
-syncWeightsUI();
-
-els.applyBtn?.addEventListener('click', applyMappingPreview);
-els.bigRegen?.addEventListener('click', ()=>{ autoSmartMix(); applyMappingPreview(); });
-
-// Projects
-els.openProjects?.addEventListener('click', openProjects);
-els.closeProjects?.addEventListener('click', closeProjects);
-els.refreshProjects?.addEventListener('click', listProjects);
-els.saveProject?.addEventListener('click', saveProject);
-els.exportProject?.addEventListener('click', exportProject);
-els.importProject?.addEventListener('change', (e)=> {
-  const f = e.target.files?.[0]; if (f) importProjectFile(f);
-});
-els.deleteProject?.addEventListener('click', deleteProject);
-
-// Initial UI
-if (els.kClustersOut) els.kClustersOut.textContent = els.kClusters?.value || '8';
-if (els.gamutSensitivityOut) els.gamutSensitivityOut.textContent = els.gamutSensitivity?.value || '60';
-toast('Ready');
-
