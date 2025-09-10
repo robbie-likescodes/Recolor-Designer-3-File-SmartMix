@@ -2,15 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Cup Mapper — Smart Mixing</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Recolor Designer — Smart Mixing</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <!-- Flat paths since all files are in the root -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <!-- ===================== Top Bar ===================== -->
   <header class="topbar" role="banner">
     <div class="topbar__left">
-      <h1 class="app-title">Recolor Designer</h1>
+      <h1 class="app-title">Cup Mapper</h1>
       <span class="app-subtitle">Limited inks · Auto Smart Mix · Pattern Replace</span>
     </div>
     <nav class="topbar__right" aria-label="App actions">
@@ -22,37 +23,39 @@
 
   <!-- ===================== Layout ===================== -->
   <main class="layout">
-
     <!-- ========== LEFT: Controls ========== -->
     <aside class="panel panel--controls" aria-label="Controls">
-
       <!-- Upload & Preview Controls -->
       <section class="card" aria-labelledby="sec-upload-h">
         <div class="card__header">
-          <h2 id="sec-upload-h">1. Upload & Preview</h2>
-          <p class="muted">JPEG EXIF handled. HEIC/HEIF will be detected and prompted to convert.</p>
+          <h2 id="sec-upload-h">1) Upload & Preview</h2>
+          <p class="muted">AI image, selfie, logo — EXIF rotation handled.</p>
         </div>
         <div class="card__body">
-          <div class="uploader">
+          <div class="heroWrap" style="margin-bottom:10px">
+            <canvas id="heroCanvas" width="0" height="0" aria-label="Original image preview"></canvas>
+          </div>
+
+          <div class="row wrap uploader">
             <input id="fileInput" type="file" accept="image/*" aria-label="Choose image" />
-            <div class="uploader__row">
-              <button id="btnLoadSample" class="btn">Load sample</button>
-              <button id="btnClear" class="btn btn-ghost">Clear</button>
-              <label class="row preview-zoom">
-                <span class="muted">Zoom</span>
-                <input id="zoom" type="range" min="10" max="400" value="100" />
-                <span id="zoomLabel" class="mono">100%</span>
-              </label>
-              <div class="row">
-                <button id="btnZoomFit" class="btn btn-ghost" title="Fit to screen">Fit</button>
-                <button id="btnZoom100" class="btn btn-ghost" title="Zoom 100%">100%</button>
-              </div>
+          </div>
+
+          <div class="uploader__row">
+            <label>Max width
+              <input id="maxW" type="number" min="256" max="4096" value="1600" />
+            </label>
+            <div class="preview-zoom">
+              <label>Zoom</label>
+              <input id="zoom" type="range" min="10" max="400" value="100" />
+              <span id="zoomLabel" class="mono">100%</span>
             </div>
-            <div class="row" style="margin-top:10px">
-              <label>Max preview width (px)
-                <input id="maxW" type="number" min="256" max="4096" value="1600" class="mono" />
-              </label>
-            </div>
+            <button id="btnZoomFit" class="btn btn-ghost">Fit</button>
+            <button id="btnZoom100" class="btn btn-ghost">100%</button>
+          </div>
+
+          <div class="row wrap" style="margin-top:10px;">
+            <button id="btnLoadSample" class="btn">Load sample</button>
+            <button id="btnClear" class="btn btn-danger">Clear</button>
           </div>
         </div>
       </section>
@@ -60,8 +63,8 @@
       <!-- Original Palette -->
       <section class="card" aria-labelledby="sec-origpal-h">
         <div class="card__header">
-          <h2 id="sec-origpal-h">2. Original Palette</h2>
-          <p class="muted">Extract dominant colors or add with the eyedropper.</p>
+          <h2 id="sec-origpal-h">2) Original palette</h2>
+          <p class="muted">Extract dominant colors or add with eyedropper.</p>
         </div>
         <div class="card__body">
           <div class="row wrap">
@@ -79,17 +82,22 @@
       <!-- Restricted Palette (Inks) -->
       <section class="card" aria-labelledby="sec-restr-h">
         <div class="card__header">
-          <h2 id="sec-restr-h">3. Restricted Palette (Inks)</h2>
-          <p class="muted">Up to 10 inks. You can save and reuse kits.</p>
+          <h2 id="sec-restr-h">3) Restricted palette (inks)</h2>
+          <p class="muted">Choose up to 10 inks. Save as kits.</p>
         </div>
         <div class="card__body">
           <div class="row wrap">
             <button id="btnFromOriginal" class="btn">From original</button>
-            <label class="switch"><input id="allowWhite" type="checkbox" /><span></span></label>
+            <label class="switch" title="Allow White">
+              <input id="allowWhite" type="checkbox" />
+              <span></span>
+            </label>
             <span class="muted">Allow White</span>
             <button id="btnAddInk" class="btn btn-ghost">Add ink</button>
           </div>
+
           <div id="restrictedList" class="restricted-list" aria-live="polite"></div>
+
           <div class="divider"></div>
           <div class="row wrap">
             <label>Save kit as
@@ -105,24 +113,30 @@
       <!-- Smart Mixing -->
       <section class="card" aria-labelledby="sec-mix-h">
         <div class="card__header">
-          <h2 id="sec-mix-h">4. Smart Mixing</h2>
-          <p class="muted">Auto mix missing colors, or override with Pattern mode.</p>
+          <h2 id="sec-mix-h">4) Smart Mixing</h2>
+          <p class="muted">Auto mix missing colors or override per-color using Pattern mode.</p>
         </div>
         <div class="card__body">
           <div class="row wrap">
-            <label class="switch"><input id="autoSmart" type="checkbox" checked /><span></span></label>
+            <label class="switch">
+              <input id="autoSmart" type="checkbox" checked />
+              <span></span>
+            </label>
             <span class="muted">Auto mix missing colors</span>
+
             <label>Max inks / mix
               <select id="maxInksPerMix">
                 <option value="2" selected>2</option>
                 <option value="3">3</option>
               </select>
             </label>
+
             <label>Gamut sensitivity
               <input id="gamutSensitivity" type="range" min="0" max="100" value="60" />
               <span id="gamutSensitivityOut" class="mono">60</span>
             </label>
           </div>
+
           <div class="row wrap">
             <label>Block (cells)
               <input id="mixBlock" type="number" min="3" max="16" value="6" />
@@ -161,16 +175,14 @@
             </table>
           </div>
 
-          <!-- Template for rules -->
+          <!-- Template for a rule row -->
           <template id="tplRule">
             <tr>
               <td>
                 <label class="switch"><input type="checkbox" data-fn="toggleOn" /><span></span></label>
               </td>
               <td>
-                <div class="swatch swatch--orig" data-ref="origSwatch" title="Original color" style="grid-template-columns:1fr;">
-                  <!-- background color set via JS -->
-                </div>
+                <div class="swatch swatch--orig" data-ref="origSwatch" title="Original color" style="grid-template-columns:1fr;"></div>
               </td>
               <td>
                 <select data-ref="mode">
@@ -260,7 +272,7 @@
       <!-- Map to Palette -->
       <section class="card" aria-labelledby="sec-map-h">
         <div class="card__header">
-          <h2 id="sec-map-h">5. Map to Palette</h2>
+          <h2 id="sec-map-h">5) Map to palette</h2>
         </div>
         <div class="card__body">
           <div class="row wrap">
@@ -292,8 +304,9 @@
               </select>
             </label>
           </div>
+
           <div class="row wrap" style="margin-top:8px">
-            <button id="applyBtn" class="btn">Apply</button>
+            <button id="applyBtn" class="btn btn-primary">Apply</button>
             <button id="bigRegen" class="btn btn-ghost">Regenerate</button>
             <div id="mapProgress" class="progress hidden" role="status" aria-live="polite">
               <span class="spinner" aria-hidden="true"></span>
@@ -306,22 +319,21 @@
       <!-- Export -->
       <section class="card" aria-labelledby="sec-export-h">
         <div class="card__header">
-          <h2 id="sec-export-h">6. Export</h2>
+          <h2 id="sec-export-h">6) Export</h2>
         </div>
         <div class="card__body">
-          <div class="row wrap">
+          <div class="row wrap" style="align-items:flex-end; gap:12px;">
             <label>PNG scale
               <input id="exportScale" type="number" min="1" max="16" value="4" />
             </label>
             <label class="switch"><input id="exportTransparent" type="checkbox" /><span></span></label>
             <span class="muted">Transparent background</span>
-            <button id="btnExportPNG" class="btn">Export PNG</button>
+            <button id="btnExportPNG" class="btn btn-primary">Export PNG</button>
             <button id="btnExportSVG" class="btn btn-ghost">Export SVG</button>
             <button id="btnExportReport" class="btn btn-ghost">Export Report</button>
           </div>
         </div>
       </section>
-
     </aside>
 
     <!-- ========== RIGHT: Preview Canvases ========== -->
@@ -342,7 +354,6 @@
         </figure>
       </div>
     </section>
-
   </main>
 
   <!-- ===================== Projects Drawer ===================== -->
@@ -373,7 +384,7 @@
     </div>
     <div class="modal__body">
       <ol class="help-steps">
-        <li>Upload an image. Adjust zoom and max preview width as needed.</li>
+        <li>Upload an image. Adjust zoom and max preview width.</li>
         <li>Extract the <strong>Original Palette</strong> or add colors via the eyedropper.</li>
         <li>Build your <strong>Restricted Palette</strong>. Save your kit if you like.</li>
         <li>Enable <strong>Auto Smart Mix</strong> to approximate missing colors. Tweak per-color rules (Mix or Pattern).</li>
@@ -389,7 +400,7 @@
       <button id="btnCloseAbout" class="btn btn-ghost">Close</button>
     </div>
     <div class="modal__body">
-      <p><strong>Recolor Designer</strong> — limited inks remapper with automated Smart Mixing and per-color Pattern Replace.</p>
+      <p><strong>Cup Mapper</strong> — limited inks remapper with automated Smart Mixing and per-color Pattern Replace.</p>
       <p>Exports: PNG (1×–16×), SVG (rect-per-pixel), and printer-friendly report.</p>
     </div>
   </dialog>
@@ -398,6 +409,6 @@
   <div id="toasts" class="toast-host" aria-live="polite" aria-atomic="true"></div>
 
   <!-- ===================== Script ===================== -->
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
