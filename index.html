@@ -1,256 +1,403 @@
-/* =====================================================
-   Recolor Designer — styles.css
-   Cushy, spacious, mobile + desktop friendly
-   ===================================================== */
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Recolor Designer — Smart Mixing</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- ===================== Top Bar ===================== -->
+  <header class="topbar" role="banner">
+    <div class="topbar__left">
+      <h1 class="app-title">Recolor Designer</h1>
+      <span class="app-subtitle">Limited inks · Auto Smart Mix · Pattern Replace</span>
+    </div>
+    <nav class="topbar__right" aria-label="App actions">
+      <button id="btnOpenHelp" class="btn btn-ghost" title="Help">Help</button>
+      <button id="btnOpenAbout" class="btn btn-ghost" title="About">About</button>
+      <button id="openProjects" class="btn btn-primary" title="Projects">Projects</button>
+    </nav>
+  </header>
 
-:root {
-  --bg: #f9f9fb;
-  --fg: #222;
-  --muted: #666;
-  --accent: #4b7bec;
-  --accent-light: #d6e4ff;
-  --border: #ddd;
-  --radius: 1rem;
-  --shadow: 0 2px 8px rgba(0,0,0,0.08);
-  --font: 'Inter', system-ui, -apple-system, sans-serif;
-}
+  <!-- ===================== Layout ===================== -->
+  <main class="layout">
 
-* { box-sizing: border-box; }
+    <!-- ========== LEFT: Controls ========== -->
+    <aside class="panel panel--controls" aria-label="Controls">
 
-body {
-  margin: 0;
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--fg);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
+      <!-- Upload & Preview Controls -->
+      <section class="card" aria-labelledby="sec-upload-h">
+        <div class="card__header">
+          <h2 id="sec-upload-h">1. Upload & Preview</h2>
+          <p class="muted">JPEG EXIF handled. HEIC/HEIF will be detected and prompted to convert.</p>
+        </div>
+        <div class="card__body">
+          <div class="uploader">
+            <input id="fileInput" type="file" accept="image/*" aria-label="Choose image" />
+            <div class="uploader__row">
+              <button id="btnLoadSample" class="btn">Load sample</button>
+              <button id="btnClear" class="btn btn-ghost">Clear</button>
+              <label class="row preview-zoom">
+                <span class="muted">Zoom</span>
+                <input id="zoom" type="range" min="10" max="400" value="100" />
+                <span id="zoomLabel" class="mono">100%</span>
+              </label>
+              <div class="row">
+                <button id="btnZoomFit" class="btn btn-ghost" title="Fit to screen">Fit</button>
+                <button id="btnZoom100" class="btn btn-ghost" title="Zoom 100%">100%</button>
+              </div>
+            </div>
+            <div class="row" style="margin-top:10px">
+              <label>Max preview width (px)
+                <input id="maxW" type="number" min="256" max="4096" value="1600" class="mono" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
 
-h1,h2,h3 { margin: 0; font-weight: 600; }
+      <!-- Original Palette -->
+      <section class="card" aria-labelledby="sec-origpal-h">
+        <div class="card__header">
+          <h2 id="sec-origpal-h">2. Original Palette</h2>
+          <p class="muted">Extract dominant colors or add with the eyedropper.</p>
+        </div>
+        <div class="card__body">
+          <div class="row wrap">
+            <label>Clusters
+              <input id="kClusters" type="range" min="2" max="16" value="8" />
+              <span id="kClustersOut" class="mono">8</span>
+            </label>
+            <button id="btnExtract" class="btn">Extract</button>
+            <button id="btnEyedropper" class="btn btn-ghost" title="Pick a color from image">Eyedropper</button>
+          </div>
+          <div id="origPalette" class="swatch-grid" aria-live="polite" aria-label="Original palette swatches"></div>
+        </div>
+      </section>
 
-button, input, select, textarea {
-  font-family: inherit;
-  font-size: 1rem;
-}
+      <!-- Restricted Palette (Inks) -->
+      <section class="card" aria-labelledby="sec-restr-h">
+        <div class="card__header">
+          <h2 id="sec-restr-h">3. Restricted Palette (Inks)</h2>
+          <p class="muted">Up to 10 inks. You can save and reuse kits.</p>
+        </div>
+        <div class="card__body">
+          <div class="row wrap">
+            <button id="btnFromOriginal" class="btn">From original</button>
+            <label class="switch"><input id="allowWhite" type="checkbox" /><span></span></label>
+            <span class="muted">Allow White</span>
+            <button id="btnAddInk" class="btn btn-ghost">Add ink</button>
+          </div>
+          <div id="restrictedList" class="restricted-list" aria-live="polite"></div>
+          <div class="divider"></div>
+          <div class="row wrap">
+            <label>Save kit as
+              <input id="kitName" type="text" placeholder="My 5-ink kit" />
+            </label>
+            <button id="btnSaveKit" class="btn">Save kit</button>
+            <button id="btnLoadKit" class="btn btn-ghost">Load kit</button>
+            <button id="btnDeleteKit" class="btn btn-danger">Delete kit</button>
+          </div>
+        </div>
+      </section>
 
-/* ---------------- Topbar ---------------- */
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: #fff;
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.app-title { font-size: 1.5rem; }
-.app-subtitle { color: var(--muted); font-size: 0.9rem; }
+      <!-- Smart Mixing -->
+      <section class="card" aria-labelledby="sec-mix-h">
+        <div class="card__header">
+          <h2 id="sec-mix-h">4. Smart Mixing</h2>
+          <p class="muted">Auto mix missing colors, or override with Pattern mode.</p>
+        </div>
+        <div class="card__body">
+          <div class="row wrap">
+            <label class="switch"><input id="autoSmart" type="checkbox" checked /><span></span></label>
+            <span class="muted">Auto mix missing colors</span>
+            <label>Max inks / mix
+              <select id="maxInksPerMix">
+                <option value="2" selected>2</option>
+                <option value="3">3</option>
+              </select>
+            </label>
+            <label>Gamut sensitivity
+              <input id="gamutSensitivity" type="range" min="0" max="100" value="60" />
+              <span id="gamutSensitivityOut" class="mono">60</span>
+            </label>
+          </div>
+          <div class="row wrap">
+            <label>Block (cells)
+              <input id="mixBlock" type="number" min="3" max="16" value="6" />
+            </label>
+            <label>Cell (px)
+              <input id="mixCell" type="number" min="1" max="16" value="3" />
+            </label>
+            <label>Pattern order
+              <select id="mixPattern">
+                <option value="bluenoise" selected>Blue-noise</option>
+                <option value="bayer">Bayer</option>
+                <option value="checker">Checker</option>
+                <option value="stripeH">Stripes (H)</option>
+                <option value="stripeV">Stripes (V)</option>
+              </select>
+            </label>
+            <button id="btnGenerateMixes" class="btn">Generate mixes</button>
+          </div>
 
-.topbar__right .btn { margin-left: 0.5rem; }
+          <!-- Rules table -->
+          <div class="divider"></div>
+          <div class="rules">
+            <table id="rulesTable" class="table" aria-label="Mix and Pattern rules per original color">
+              <thead>
+                <tr>
+                  <th>On</th>
+                  <th>Original</th>
+                  <th>Mode</th>
+                  <th>Preview</th>
+                  <th>Params</th>
+                  <th>ΔE</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
 
-/* ---------------- Layout ---------------- */
-main.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(320px,1fr));
-  gap: 1.5rem;
-  padding: 1.5rem;
-}
+          <!-- Template for rules -->
+          <template id="tplRule">
+            <tr>
+              <td>
+                <label class="switch"><input type="checkbox" data-fn="toggleOn" /><span></span></label>
+              </td>
+              <td>
+                <div class="swatch swatch--orig" data-ref="origSwatch" title="Original color" style="grid-template-columns:1fr;">
+                  <!-- background color set via JS -->
+                </div>
+              </td>
+              <td>
+                <select data-ref="mode">
+                  <option value="mix">Mix</option>
+                  <option value="pattern">Pattern</option>
+                </select>
+              </td>
+              <td>
+                <canvas width="64" height="64" data-ref="preview"></canvas>
+              </td>
+              <td>
+                <!-- MIX MODE params -->
+                <div class="mix-grid" data-ref="mixParams">
+                  <label>Inks
+                    <div class="ink-pills" data-ref="mixInks"></div>
+                  </label>
+                  <label>Weights
+                    <div class="weights" data-ref="mixWeights"></div>
+                  </label>
+                  <div class="row wrap">
+                    <label>Block
+                      <input type="number" min="3" max="16" value="6" data-ref="mixBlock" />
+                    </label>
+                    <label>Cell
+                      <input type="number" min="1" max="16" value="3" data-ref="mixCell" />
+                    </label>
+                    <label>Pattern
+                      <select data-ref="mixPattern">
+                        <option value="bluenoise">Blue-noise</option>
+                        <option value="bayer">Bayer</option>
+                        <option value="checker">Checker</option>
+                        <option value="stripeH">Stripes (H)</option>
+                        <option value="stripeV">Stripes (V)</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
 
-.card {
-  background: #fff;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1.25rem;
-}
-.card__title {
-  margin-bottom: 1rem;
-  font-size: 1.2rem;
-}
+                <!-- PATTERN MODE params -->
+                <div class="mix-grid hidden" data-ref="patternParams">
+                  <div class="row wrap">
+                    <label>Shape
+                      <select data-ref="shape">
+                        <option value="dot">Dot</option>
+                        <option value="square">Square</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="diamond">Diamond</option>
+                        <option value="cross">Cross</option>
+                        <option value="stripeH">Stripe H</option>
+                        <option value="stripeV">Stripe V</option>
+                        <option value="checker">Checker</option>
+                      </select>
+                    </label>
+                    <label>BG
+                      <input type="text" data-ref="bgHex" placeholder="#FFFFFF" class="mono" />
+                    </label>
+                    <label>Ink(s)
+                      <div class="ink-pills" data-ref="shapeInks"></div>
+                    </label>
+                  </div>
+                  <div class="row wrap">
+                    <label>Cell
+                      <input type="number" min="1" max="16" value="3" data-ref="patCell" />
+                    </label>
+                    <label>Size
+                      <input type="range" min="10" max="100" value="65" data-ref="shapeSize" />
+                      <span data-ref="shapeSizeOut" class="mono">65%</span>
+                    </label>
+                    <label class="switch" title="Stagger rows">
+                      <input type="checkbox" data-ref="stagger" />
+                      <span></span>
+                    </label>
+                    <span class="muted">Stagger</span>
+                    <label>Block
+                      <input type="number" min="3" max="16" value="6" data-ref="patBlock" />
+                    </label>
+                  </div>
+                </div>
+              </td>
+              <td><span class="mono" data-ref="errOut">—</span></td>
+              <td><button class="btn btn-ghost" data-fn="reset">Reset</button></td>
+            </tr>
+          </template>
+        </div>
+      </section>
 
-.col-span-2 { grid-column: span 2; }
+      <!-- Map to Palette -->
+      <section class="card" aria-labelledby="sec-map-h">
+        <div class="card__header">
+          <h2 id="sec-map-h">5. Map to Palette</h2>
+        </div>
+        <div class="card__body">
+          <div class="row wrap">
+            <label>ΔL weight
+              <input id="wLight" type="range" min="0" max="200" value="100" />
+              <span id="wLightOut" class="mono">1.00</span>
+            </label>
+            <label>ΔC weight
+              <input id="wChroma" type="range" min="0" max="200" value="100" />
+              <span id="wChromaOut" class="mono">1.00</span>
+            </label>
+            <label class="switch"><input id="useDither" type="checkbox" /><span></span></label>
+            <span class="muted">Dither (Floyd–Steinberg)</span>
+            <label class="switch"><input id="useSharpen" type="checkbox" /><span></span></label>
+            <span class="muted">Sharpen</span>
+            <label>BG mode
+              <select id="bgMode">
+                <option value="keep" selected>Keep</option>
+                <option value="white">White</option>
+                <option value="transparent">Transparent</option>
+              </select>
+            </label>
+            <label>Preview scale
+              <select id="previewScale">
+                <option value="1">100%</option>
+                <option value="0.75">75%</option>
+                <option value="0.5">50%</option>
+                <option value="0.25">25%</option>
+              </select>
+            </label>
+          </div>
+          <div class="row wrap" style="margin-top:8px">
+            <button id="applyBtn" class="btn">Apply</button>
+            <button id="bigRegen" class="btn btn-ghost">Regenerate</button>
+            <div id="mapProgress" class="progress hidden" role="status" aria-live="polite">
+              <span class="spinner" aria-hidden="true"></span>
+              <span id="mapProgressLabel">Mapping…</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-/* ---------------- Controls ---------------- */
-.row { display: flex; align-items: center; }
-.row.gap > * { margin-right: 0.75rem; }
-.row.wrap { flex-wrap: wrap; }
-.row.tiny.gap > * { margin-right: 0.4rem; }
+      <!-- Export -->
+      <section class="card" aria-labelledby="sec-export-h">
+        <div class="card__header">
+          <h2 id="sec-export-h">6. Export</h2>
+        </div>
+        <div class="card__body">
+          <div class="row wrap">
+            <label>PNG scale
+              <input id="exportScale" type="number" min="1" max="16" value="4" />
+            </label>
+            <label class="switch"><input id="exportTransparent" type="checkbox" /><span></span></label>
+            <span class="muted">Transparent background</span>
+            <button id="btnExportPNG" class="btn">Export PNG</button>
+            <button id="btnExportSVG" class="btn btn-ghost">Export SVG</button>
+            <button id="btnExportReport" class="btn btn-ghost">Export Report</button>
+          </div>
+        </div>
+      </section>
 
-.lbl {
-  font-size: 0.9rem;
-  display: flex;
-  flex-direction: column;
-  margin-right: 0.75rem;
-}
-.lbl.small { font-size: 0.8rem; }
+    </aside>
 
-.chk { display: flex; align-items: center; font-size: 0.9rem; }
-.chk.small { font-size: 0.8rem; }
+    <!-- ========== RIGHT: Preview Canvases ========== -->
+    <section class="panel panel--preview" aria-label="Preview">
+      <figure class="heroWrap">
+        <figcaption class="figcaption">Original (hero preview)</figcaption>
+        <div class="canvas-scroll">
+          <canvas id="heroCanvas" aria-label="Hero preview"></canvas>
+        </div>
+      </figure>
 
-input[type=range] {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 140px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--border);
-}
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  height: 20px; width: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-}
-input[type=range]::-moz-range-thumb {
-  height: 20px; width: 20px; border-radius: 50%; background: var(--accent);
-}
+      <div class="canvas-stack">
+        <figure class="canvas-wrap">
+          <figcaption class="figcaption">Mapped Image</figcaption>
+          <div class="canvas-scroll">
+            <canvas id="mappedCanvas" aria-label="Mapped image"></canvas>
+          </div>
+        </figure>
+      </div>
+    </section>
 
-input, select, button {
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-}
+  </main>
 
-button {
-  cursor: pointer;
-  background: var(--accent);
-  color: #fff;
-  transition: background 0.2s;
-}
-button:hover { background: #3867d6; }
+  <!-- ===================== Projects Drawer ===================== -->
+  <aside id="projectsPane" class="drawer hidden" aria-labelledby="projectsTitle" aria-hidden="true">
+    <div class="drawer__head">
+      <h2 id="projectsTitle">Projects</h2>
+      <button id="closeProjects" class="btn btn-ghost">Close</button>
+    </div>
+    <div class="drawer__body">
+      <div class="row wrap">
+        <button id="refreshProjects" class="btn btn-ghost">Refresh</button>
+        <button id="saveProject" class="btn">Save current</button>
+        <button id="exportProject" class="btn btn-ghost">Export JSON</button>
+        <label class="filelike btn btn-ghost">Import JSON
+          <input id="importProject" type="file" accept="application/json" />
+        </label>
+        <button id="deleteProject" class="btn btn-danger">Delete selected</button>
+      </div>
+      <ul id="projectsList" class="list"></ul>
+    </div>
+  </aside>
 
-button.ghost {
-  background: transparent;
-  color: var(--fg);
-}
-button.warn { background: #eb3b5a; }
-button.warn:hover { background: #d7334f; }
+  <!-- ===================== Dialogs ===================== -->
+  <dialog id="dlgHelp" class="modal">
+    <div class="modal__header">
+      <h3>Help</h3>
+      <button id="btnCloseHelp" class="btn btn-ghost">Close</button>
+    </div>
+    <div class="modal__body">
+      <ol class="help-steps">
+        <li>Upload an image. Adjust zoom and max preview width as needed.</li>
+        <li>Extract the <strong>Original Palette</strong> or add colors via the eyedropper.</li>
+        <li>Build your <strong>Restricted Palette</strong>. Save your kit if you like.</li>
+        <li>Enable <strong>Auto Smart Mix</strong> to approximate missing colors. Tweak per-color rules (Mix or Pattern).</li>
+        <li>Click <strong>Apply</strong> to map. Regenerate mixes after big palette changes.</li>
+        <li>Export PNG/SVG, or create a printer report.</li>
+      </ol>
+    </div>
+  </dialog>
 
-input.mono, .mono { font-family: 'Roboto Mono', monospace; }
-.smallmuted { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+  <dialog id="dlgAbout" class="modal">
+    <div class="modal__header">
+      <h3>About</h3>
+      <button id="btnCloseAbout" class="btn btn-ghost">Close</button>
+    </div>
+    <div class="modal__body">
+      <p><strong>Recolor Designer</strong> — limited inks remapper with automated Smart Mixing and per-color Pattern Replace.</p>
+      <p>Exports: PNG (1×–16×), SVG (rect-per-pixel), and printer-friendly report.</p>
+    </div>
+  </dialog>
 
-/* ---------------- Swatches ---------------- */
-.swatch-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.swatch {
-  width: 32px; height: 32px;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  box-shadow: inset 0 0 2px rgba(0,0,0,0.1);
-}
-.swatch--orig { width: 24px; height: 24px; }
+  <!-- ===================== Toasts ===================== -->
+  <div id="toasts" class="toast-host" aria-live="polite" aria-atomic="true"></div>
 
-.restricted-list .rp-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-.rp-check { margin-right: 0.5rem; }
-
-.ink-pills { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.ink-pills .pill {
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  background: var(--accent-light);
-  font-size: 0.75rem;
-}
-
-/* ---------------- Canvas ---------------- */
-.canvas-wrap {
-  width: 100%;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-top: 1rem;
-  text-align: center;
-  background: #fafafa;
-}
-canvas {
-  max-width: 100%;
-  height: auto;
-  image-rendering: pixelated;
-}
-
-/* ---------------- Rules Table ---------------- */
-.table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-.table th, .table td { border-bottom: 1px solid var(--border); padding: 0.4rem; text-align: center; }
-.table thead { background: #f1f1f5; }
-
-.rules canvas { border: 1px solid var(--border); border-radius: 0.25rem; }
-
-.switch { position: relative; display: inline-block; width: 38px; height: 20px; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.switch span {
-  position: absolute; cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #ccc;
-  transition: .2s; border-radius: 20px;
-}
-.switch span:before {
-  position: absolute; content: "";
-  height: 16px; width: 16px;
-  left: 2px; bottom: 2px;
-  background-color: white;
-  transition: .2s; border-radius: 50%;
-}
-.switch input:checked + span { background-color: var(--accent); }
-.switch input:checked + span:before { transform: translateX(18px); }
-
-/* ---------------- Drawer (Projects) ---------------- */
-.drawer {
-  position: fixed; right: 0; top: 0;
-  width: 360px; max-width: 100%;
-  height: 100%;
-  background: #fff;
-  border-left: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  display: flex; flex-direction: column;
-  z-index: 200;
-}
-.drawer__head { display: flex; justify-content: space-between; padding: 1rem; border-bottom: 1px solid var(--border); }
-.drawer__body { padding: 1rem; overflow-y: auto; }
-.list { list-style: none; padding: 0; margin: 0; }
-.list li { padding: 0.5rem; border-bottom: 1px solid var(--border); }
-
-/* ---------------- Dialogs ---------------- */
-.dialog {
-  border: none;
-  border-radius: var(--radius);
-  padding: 0;
-  max-width: 600px;
-  width: 90%;
-  box-shadow: var(--shadow);
-}
-.dialog__head { display: flex; justify-content: space-between; padding: 1rem; border-bottom: 1px solid var(--border); background: #f9f9fb; }
-.dialog__body { padding: 1rem; }
-
-/* ---------------- Toasts ---------------- */
-.toasts { position: fixed; bottom: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-.toasts .toast {
-  background: #333; color: #fff;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  box-shadow: var(--shadow);
-  animation: fadein 0.3s, fadeout 0.3s 4s forwards;
-}
-@keyframes fadein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes fadeout { to { opacity: 0; transform: translateY(10px); } }
-
-/* ---------------- Progress ---------------- */
-.progress { margin-top: 1rem; text-align: center; }
-.hidden { display: none !important; }
-
-/* ---------------- Responsive ---------------- */
-@media (max-width: 600px) {
-  .topbar { flex-direction: column; align-items: flex-start; }
-  main.grid { grid-template-columns: 1fr; }
-  .card { padding: 1rem; }
-  input[type=range] { width: 100%; }
-}
+  <!-- ===================== Script ===================== -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
